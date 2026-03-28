@@ -37,32 +37,90 @@ class _HomeViewBodyState extends State<HomeViewBody> {
     if (trimmed.isEmpty) return;
 
     setState(() => _isProcessing = true);
+    // Explicitly stop scanning while processing/dialog is open
+    await controller.stop();
+    
     HapticFeedback.vibrate();
-    log('Performing registration for: $trimmed');
+    log('Fetching status for: $trimmed');
 
     try {
-      final TicketDataModel result = await context
-          .read<TicketScannerVM>()
-          .checkIn(trimmed);
+      final scannerVM = context.read<TicketScannerVM>();
+      // Step 1: Check status via GET
+      final TicketDataModel initialResult = await scannerVM.checkStatus(trimmed);
 
       if (!mounted) return;
 
-      if (result.ok) {
-        showRegistrationResult(
-          context,
-          ScanResultType.success,
-          attendeeName: result.user?.name,
-          ticketCode: result.ticketCode,
-          onDone: () => setState(() => _isProcessing = false),
-        );
-      } else {
+      if (!initialResult.ok) {
+        // Already scanned - show warning immediately
         showRegistrationResult(
           context,
           ScanResultType.alreadyScanned,
-          scannedAt: result.scannedAt,
-          onDone: () => setState(() => _isProcessing = false),
+          scannedAt: initialResult.scannedAt,
+          onDone: () async {
+            setState(() => _isProcessing = false);
+            await controller.start();
+          },
         );
+        return;
       }
+
+      // Step 2: Show preview dialog
+      showRegistrationResult(
+        context,
+        ScanResultType.preview,
+        attendeeName: initialResult.user?.name,
+        email: initialResult.user?.email,
+        phoneNumber: initialResult.user?.phone,
+        ticketCode: initialResult.ticketCode,
+        onDone: () async {
+          setState(() => _isProcessing = false);
+          await controller.start();
+        },
+        onConfirm: () async {
+          // Step 3: Mark as scanned via POST
+          try {
+            final result = await scannerVM.checkIn(trimmed);
+            if (!mounted) return;
+            
+            if (result.ok) {
+              showRegistrationResult(
+                context,
+                ScanResultType.success,
+                attendeeName: result.user?.name,
+                email: result.user?.email,
+                phoneNumber: result.user?.phone,
+                ticketCode: result.ticketCode,
+                onDone: () async {
+                  setState(() => _isProcessing = false);
+                  await controller.start();
+                },
+              );
+            } else {
+              // Handle case where it was scanned while in preview
+              showRegistrationResult(
+                context,
+                ScanResultType.alreadyScanned,
+                scannedAt: result.scannedAt,
+                onDone: () async {
+                  setState(() => _isProcessing = false);
+                  await controller.start();
+                },
+              );
+            }
+          } catch (e) {
+            if (!mounted) return;
+            showRegistrationResult(
+              context,
+              ScanResultType.error,
+              errorMessage: e.toString().replaceFirst('Exception: ', ''),
+              onDone: () async {
+                setState(() => _isProcessing = false);
+                await controller.start();
+              },
+            );
+          }
+        },
+      );
     } catch (e) {
       if (!mounted) return;
       final message = e.toString().replaceFirst('Exception: ', '');
@@ -75,13 +133,16 @@ class _HomeViewBodyState extends State<HomeViewBody> {
         context,
         isNotFound ? ScanResultType.notFound : ScanResultType.error,
         errorMessage: message,
-        onDone: () => setState(() => _isProcessing = false),
+        onDone: () async {
+          setState(() => _isProcessing = false);
+          await controller.start();
+        },
       );
     }
   }
 
   void _handleDetection(BarcodeCapture capture) {
-    if (_isProcessing) return;
+    if (_isProcessing || !controller.value.isRunning) return;
     final barcodes = capture.barcodes;
     if (barcodes.isNotEmpty) {
       final code = barcodes.first.displayValue ?? '';

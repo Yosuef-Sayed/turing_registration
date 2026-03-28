@@ -3,16 +3,19 @@
 import 'package:flutter/material.dart';
 import 'package:turing_registration/core/utils/constants/constants.dart';
 
-enum ScanResultType { success, alreadyScanned, notFound, error }
+enum ScanResultType { success, alreadyScanned, notFound, error, preview }
 
 void showRegistrationResult(
   BuildContext context,
   ScanResultType type, {
   String? attendeeName,
+  String? email,
+  String? phoneNumber,
   String? ticketCode,
   String? scannedAt,
   String? errorMessage,
   VoidCallback? onDone,
+  VoidCallback? onConfirm,
 }) {
   Color accentColor;
   IconData icon;
@@ -31,6 +34,47 @@ void showRegistrationResult(
           if (attendeeName != null) ...[
             Text('Name', style: _labelStyle),
             Text(attendeeName, style: _valueStyle),
+            const SizedBox(height: 12),
+          ],
+          if (email != null) ...[
+            Text('Email', style: _labelStyle),
+            Text(email, style: _valueStyle),
+            const SizedBox(height: 12),
+          ],
+          if (phoneNumber != null) ...[
+            Text('Phone Number', style: _labelStyle),
+            Text(phoneNumber, style: _valueStyle),
+            const SizedBox(height: 12),
+          ],
+          if (ticketCode != null) ...[
+            Text('Ticket Code', style: _labelStyle),
+            Text(ticketCode, style: _valueStyle),
+          ],
+        ],
+      );
+      break;
+
+    case ScanResultType.preview:
+      accentColor = const Color(0xff6366f1); // Indigo for preview
+      icon = Icons.info_outline_rounded;
+      title = 'Ticket Info';
+      body = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (attendeeName != null) ...[
+            Text('Name', style: _labelStyle),
+            Text(attendeeName, style: _valueStyle),
+            const SizedBox(height: 12),
+          ],
+          if (email != null) ...[
+            Text('Email', style: _labelStyle),
+            Text(email, style: _valueStyle),
+            const SizedBox(height: 12),
+          ],
+          if (phoneNumber != null) ...[
+            Text('Phone Number', style: _labelStyle),
+            Text(phoneNumber, style: _valueStyle),
             const SizedBox(height: 12),
           ],
           if (ticketCode != null) ...[
@@ -118,27 +162,68 @@ void showRegistrationResult(
             const SizedBox(height: 16),
             body,
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accentColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            if (type == ScanResultType.preview) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xff94a3b8),
+                        side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        onDone?.call();
+                      },
+                      child: const Text('CANCEL'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accentColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        onConfirm?.call();
+                      },
+                      child: const Text('CONFIRM'),
+                    ),
+                  ),
+                ],
+              ),
+            ] else
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    onDone?.call();
+                  },
+                  child: const Text(
+                    'DONE',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  onDone?.call();
-                },
-                child: const Text(
-                  'DONE',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
               ),
-            ),
           ],
         ),
       ),
